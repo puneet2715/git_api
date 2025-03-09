@@ -1,4 +1,6 @@
 const config = require('../config');
+const redisService = require('./redisService');
+const logger = require('../config/logger');
 
 // Create a class that will be properly initialized after Octokit is loaded
 class GitHubService {
@@ -16,7 +18,7 @@ class GitHubService {
         auth: config.github.token
       });
     } catch (error) {
-      console.error('Failed to initialize Octokit:', error);
+      logger.error('Failed to initialize Octokit:', error);
       throw error;
     }
   }
@@ -27,6 +29,15 @@ class GitHubService {
    */
   async getUserProfile() {
     try {
+      const cacheKey = `github:user:${this.username}`;
+      
+      // Try to get from cache first
+      const cachedData = await redisService.get(cacheKey);
+      if (cachedData) {
+        logger.info(`Retrieved user profile from cache for ${this.username}`);
+        return cachedData;
+      }
+
       // Ensure Octokit is initialized
       if (!this.octokit) await this.initializeOctokit();
 
@@ -42,8 +53,8 @@ class GitHubService {
         sort: 'updated',
       });
 
-      // Return formatted user data
-      return {
+      // Format the response
+      const profileData = {
         login: userData.login,
         name: userData.name,
         bio: userData.bio,
@@ -65,7 +76,14 @@ class GitHubService {
           updated_at: repo.updated_at,
         })),
       };
+
+      // Store in cache
+      await redisService.set(cacheKey, profileData);
+      logger.info(`Stored user profile in cache for ${this.username}`);
+
+      return profileData;
     } catch (error) {
+      logger.error(`Failed to fetch GitHub profile: ${error.message}`);
       throw new Error(`Failed to fetch GitHub profile: ${error.message}`);
     }
   }
@@ -77,6 +95,15 @@ class GitHubService {
    */
   async getRepositoryData(repoName) {
     try {
+      const cacheKey = `github:repo:${this.username}:${repoName}`;
+      
+      // Try to get from cache first
+      const cachedData = await redisService.get(cacheKey);
+      if (cachedData) {
+        logger.info(`Retrieved repository data from cache for ${repoName}`);
+        return cachedData;
+      }
+
       // Ensure Octokit is initialized
       if (!this.octokit) await this.initializeOctokit();
 
@@ -107,8 +134,8 @@ class GitHubService {
         per_page: 10,
       });
 
-      // Return formatted repository data
-      return {
+      // Format the repository data
+      const formattedRepoData = {
         id: repoData.id,
         name: repoData.name,
         full_name: repoData.full_name,
@@ -146,7 +173,14 @@ class GitHubService {
           contributions: contributor.contributions,
         })),
       };
+
+      // Store in cache
+      await redisService.set(cacheKey, formattedRepoData);
+      logger.info(`Stored repository data in cache for ${repoName}`);
+
+      return formattedRepoData;
     } catch (error) {
+      logger.error(`Failed to fetch repository data: ${error.message}`);
       throw new Error(`Failed to fetch repository data: ${error.message}`);
     }
   }
@@ -169,6 +203,11 @@ class GitHubService {
         body: issueData.body,
       });
 
+      // Invalidate repo cache since we've added an issue
+      const cacheKey = `github:repo:${this.username}:${repoName}`;
+      await redisService.del(cacheKey);
+      logger.info(`Invalidated cache for ${repoName} after creating a new issue`);
+
       return {
         id: data.id,
         number: data.number,
@@ -177,6 +216,7 @@ class GitHubService {
         created_at: data.created_at,
       };
     } catch (error) {
+      logger.error(`Failed to create issue: ${error.message}`);
       throw new Error(`Failed to create issue: ${error.message}`);
     }
   }
