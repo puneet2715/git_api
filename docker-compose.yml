@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  github-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: github-api
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - nginx_proxy_manager_default
+    command: npm run dev
+
+networks:
+  nginx_proxy_manager_default:
+    external: true 

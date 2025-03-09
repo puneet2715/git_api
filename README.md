@@ -48,6 +48,24 @@ npm start
 npm run dev
 ```
 
+### Using Docker Compose
+
+To run the application using Docker Compose:
+
+1. Make sure you have Docker and Docker Compose installed
+2. Create a `.env` file with your GitHub credentials
+3. Build and start the containers:
+
+```
+docker-compose up -d
+```
+
+To stop the containers:
+
+```
+docker-compose down
+```
+
 ### Running Tests
 
 ```
@@ -150,4 +168,4 @@ Response:
 
 ## License
 
-MIT 
+MIT
